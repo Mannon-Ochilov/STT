@@ -1,0 +1,77 @@
+# --- Model artifacts that should NOT be committed ---
+# The .nemo checkpoint is distributed through GitHub Releases, not through Git.
+# See the "Download the checkpoint" section in README.md.
+*.nemo
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.riva
+*.plan
+nemo_experiments/
+lightning_logs/
+checkpoints/
+exp/
+runs/
+events.out.tfevents.*
+wandb/
+
+# --- Unpacked .nemo contents ---
+# `tar -xf model.nemo` leaves these next to the archive; never commit them.
+model_weights.ckpt
+model_config.yaml
+*_tokenizer.model
+*_tokenizer.vocab
+*_vocab.txt
+
+# --- Data ---
+# Speech corpora and manifests are large and often under NDA (call-center audio).
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.opus
+*.tar
+*.tar.gz
+*.zip
+manifests/
+data/
+corpus/
+audio/
+*.json
+*.jsonl
+*.csv
+*.tsv
+
+# --- Documents / drafts ---
+*.docx
+*.doc
+*.pptx
+*.xlsx
+*.pdf
+~$*
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# --- Secrets ---
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
