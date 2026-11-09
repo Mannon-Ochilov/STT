@@ -69,12 +69,14 @@ model-index:
 
 A **streaming** automatic speech recognition (ASR) model for Uzbek, built for
 real-time telephony in call-center conditions. The model is the ASR stage of the
-voice-to-voice question-answering pipeline described in the paper *"Enhancing Call
-Center Automation via Voice Interfaces: A Framework Incorporating Advanced RAG and
-Domain-Specific Speech Models"* (see [Citation](#citation)).
+real-time voice-to-voice RAG question-answering pipeline described in the paper
+*"Enhancing Retrieval Robustness through ASR-Aware Query Rewriting in Real-Time
+Voice-to-Voice RAG for Uzbek"* (see [Citation](#citation)). In that pipeline, the ASR
+transcript is passed to a fine-tuned flan-t5-large query-rewriting module before
+hybrid retrieval, which reduces the propagation of ASR errors into the RAG stage.
 
 It is a **FastConformer-Transducer (Medium)** model, fine-tuned from the pre-trained
-English FastConformer-Transducer (Medium) checkpoint on **1,905.53 hours** of Uzbek
+English FastConformer-Transducer (Medium) checkpoint on **1,903.53 hours** of Uzbek
 speech (the USC 2.0 corpus). Unlike attention encoder-decoder models such as Whisper,
 which must buffer a full 30-second window before producing output, the transducer
 decodes frame-synchronously and emits partial hypotheses as audio arrives — giving a
@@ -193,7 +195,7 @@ out-of-vocabulary problem caused by the agglutinative morphology of Uzbek.
 
 ## Training data
 
-The model was trained on **USC 2.0** — 1,905.53 hours of transcribed Uzbek speech,
+The model was trained on **USC 2.0** — 1,903.53 hours of transcribed Uzbek speech,
 1,456,276 utterances, 9,854,394 running words and 497,807 unique words.
 
 | Source / method | Hours | Type |
@@ -202,18 +204,26 @@ The model was trained on **USC 2.0** — 1,905.53 hours of transcribed Uzbek spe
 | Extended corpus (urban cadaster, geographical names) | 95 | Verified |
 | Common Voice 8.0 + SpeechOcean | 227 | Verified |
 | UzbekVoice platform | 600 | Pseudo-labeled |
-| Common Voice platform | 100 | Pseudo-labeled |
-| Common Voice platform | 101 | Verified |
+| Common Voice 24.0 (pseudo-labeling) | 100 | Pseudo-labeled |
+| Common Voice 24.0 (validated) | 101 | Verified |
 | Call-center recordings (diarization + pseudo-labeling) | 500 | Pseudo-labeled |
-| Crowdsourcing | 177.53 | Verified |
-| **Total** | **1,905.53** | |
+| Crowdsourcing (Telegram bots) | 175.53 | Verified |
+| **Total** | **1,903.53** | |
+
+Clips were de-duplicated across Common Voice versions by clip identifier: clips already
+present in the 227-hour Common Voice 8.0 + SpeechOcean set were removed, so the Common
+Voice rows do not overlap.
 
 Pseudo-labels were produced with the **ROVER** (Recognizer Output Voting Error
 Reduction) algorithm, which aligns the outputs of three independent Uzbek ASR systems
 into a word transition network and votes per column to build a single high-confidence
-transcription. Call-center audio was processed through a semi-automated pipeline:
-speaker diarization → ASR → LLM-based syntactic/contextual editing → human
-verification → normalization.
+transcription. The three systems were an E2E-Conformer trained on 1,000 hours, a
+Whisper Medium model fine-tuned on 1,600 hours, and a Whisper Medium model trained on
+Common Voice 17.0 (~475 hours). Call-center audio (Public Services Centers of the
+Samarkand region, obtained under an NDA) was processed through a semi-automated
+pipeline: speaker diarization → ASR → LLM-based syntactic/contextual editing (personal
+data masked with an NER model beforehand) → human verification against the original
+audio → normalization.
 
 ### Data splits
 
@@ -226,7 +236,8 @@ verification → normalization.
 
 Segments from the same original recording or conversation never appear in more than one
 split. Test-CallCenter was built from conversations entirely disjoint from the training
-recordings.
+recordings, and speakers were kept disjoint across the training, validation and test
+splits.
 
 ## Training
 
@@ -235,7 +246,7 @@ FastConformer-Transducer (Medium) checkpoint, on **2 × NVIDIA Tesla V100S (32 G
 
 | Hyperparameter | Value |
 |---|---|
-| Optimizer | AdamW |
+| Optimizer | AdamW (with weight decay) |
 | LR schedule | Cosine annealing, peak 7e-4 |
 | Warmup steps | 4,000 |
 | Effective batch size | 96 (gradient accumulation) |
@@ -259,18 +270,20 @@ emitted text chunk).
 | Architecture | Augmentation | Train | Val | Test-Clean | Test-CallCenter | FTL |
 |---|---|---|---|---|---|---:|
 | Standard Conformer (baseline) | None | 12.4 / 3.1 | 15.8 / 4.2 | 16.5 / 4.6 | 32.4 / 11.2 | 240 ms |
+| Standard Conformer | All augmentations (proposed) | 9.8 / 2.4 | 12.8 / 3.4 | 13.7 / 3.8 | 21.1 / 6.5 | 240 ms |
 | FastConformer (Medium) | None | 13.2 / 3.4 | 16.2 / 4.5 | 17.1 / 4.9 | 34.2 / 11.9 | 110 ms |
 | FastConformer (Medium) | Gaussian noise | 13.8 / 3.6 | 16.0 / 4.4 | 17.5 / 5.1 | 26.8 / 8.5 | 110 ms |
 | FastConformer (Medium) | Speed perturbation | 10.5 / 2.5 | 14.1 / 3.8 | 14.8 / 4.1 | 30.5 / 10.1 | 110 ms |
 | FastConformer (Medium) | SpecAugment | 11.1 / 2.8 | 13.9 / 3.6 | 14.2 / 3.9 | 28.3 / 9.2 | 110 ms |
 | **FastConformer (Medium)** | **All augmentations (proposed)** | **9.2 / 2.1** | **12.4 / 3.2** | **12.9 / 3.5** | **19.4 / 5.8** | **110 ms** |
 
-Two effects are separable here: the **FastConformer architecture** delivers the speed
-gain (240 ms → 110 ms FTL, with no accuracy benefit on its own — it is in fact slightly
-worse than the Conformer baseline without augmentation), while the **augmentation
-strategies** deliver the accuracy gain under telephony noise (34.2% → 19.4% WER,
-14.8 points). Combined, the model is 13.0 WER points better than the Conformer baseline
-on call-center audio at less than half the latency.
+Most of the accuracy gain comes from the **augmentation strategies**: on call-center
+audio they reduce WER from 34.2% to 19.4% for FastConformer (−14.8 points) and from
+32.4% to 21.1% for the standard Conformer, while on clean speech the gain is 3–4 points.
+The latency reduction comes from the **FastConformer architecture** (240 ms → 110 ms
+FTL); without augmentation it is slightly less accurate than the Conformer baseline.
+Under the same augmentation setting, FastConformer is 1.7 WER points better than the
+Conformer on Test-CallCenter at less than half the first-token latency.
 
 ## Limitations
 
@@ -280,8 +293,12 @@ on call-center audio at less than half the latency.
   dialects not represented in the training data.
 - Test-CallCenter WER (19.4%) is substantially higher than Test-Clean (12.9%) — degraded
   telephone channels remain the hardest condition.
-- A share of the training data is pseudo-labeled (1,200 of 1,905.53 hours), so label
+- A share of the training data is pseudo-labeled (1,200 of 1,903.53 hours), so label
   noise is present.
+- Telephone-channel conditions were approximated by resampling and additive noise;
+  codec artifacts were not simulated.
+- The call-center recordings (training and Test-CallCenter) are not publicly available
+  due to an NDA, which limits independent reproduction of the Test-CallCenter results.
 - Evaluated on Uzbek Latin script only.
 
 ---
@@ -290,14 +307,16 @@ on call-center audio at less than half the latency.
 
 Bu — o'zbek tili uchun **oqimli (streaming)** avtomatik nutqni aniqlash modeli.
 Real vaqt rejimida ishlaydigan telefoniya va call-center sharoitlari uchun
-mo'ljallangan. Model yuqorida keltirilgan maqoladagi "ovozdan-ovozga" savol-javob
-tizimining ASR bosqichi hisoblanadi.
+mo'ljallangan. Model yuqorida keltirilgan maqoladagi real vaqtli "ovozdan-ovozga" RAG
+savol-javob tizimining ASR bosqichi hisoblanadi. Tizimda ASR transkripti qidiruvdan
+oldin flan-t5-large asosidagi so'rovni qayta yozish moduliga uzatiladi, bu ASR
+xatolarining RAG bosqichiga o'tishini kamaytiradi.
 
 **Asosiy ko'rsatkichlar**
 
 - Arxitektura: FastConformer-Transducer (Medium), ingliz tilidagi tayyor checkpoint
   asosida to'liq fine-tuning qilingan
-- O'quv korpusi: **USC 2.0**, 1 905,53 soat, 1 456 276 ta ibora, 497 807 ta noyob so'z
+- O'quv korpusi: **USC 2.0**, 1 903,53 soat, 1 456 276 ta ibora, 497 807 ta noyob so'z
 - Aniqlik: **Test-Clean WER 12,9%** (CER 3,5%), **Test-CallCenter WER 19,4%** (CER 5,8%)
 - Kechikish: **FTL 110 ms** (Conformer bazaviy modelida 240 ms)
 - Kirish: 16 kHz mono WAV (8 kHz telefon audiosi 16 kHz ga qayta namunalanadi)
@@ -317,15 +336,19 @@ oling.
 - O'quv ma'lumotlarining 1 200 soati psevdo-belgilangan (ROVER algoritmi orqali),
   shu sababli ma'lum darajada yorliq shovqini mavjud.
 - Telefon kanali sharoitida aniqlik sezilarli pasayadi (12,9% → 19,4%).
-- Augmentatsiya strategiyalari aniqlikni beradi, FastConformer arxitekturasi esa
-  tezlikni beradi — bu ikki samara bir-biridan mustaqil.
+- Aniqlikdagi asosiy yutuq augmentatsiyadan keladi (call-center to'plamida WER
+  34,2% → 19,4%), kechikishning kamayishi esa FastConformer arxitekturasidan
+  (240 → 110 ms). Bir xil augmentatsiyada FastConformer Conformer'dan 1,7 punkt
+  aniqroq.
+- Telefon kanali qayta namunalash va qo'shimcha shovqin orqali taqlid qilingan,
+  kodek artefaktlari modellashtirilmagan.
 
 ## Citation
 
 ```bibtex
-@article{khujayarov2026callcenter,
-  title   = {Enhancing Call Center Automation via Voice Interfaces: A Framework
-             Incorporating Advanced RAG and Domain-Specific Speech Models},
+@article{khujayarov2026queryrewriting,
+  title   = {Enhancing Retrieval Robustness through ASR-Aware Query Rewriting in
+             Real-Time Voice-to-Voice RAG for Uzbek},
   author  = {Khujayarov, Ilyos and Ochilov, Mannon and Kholmatov, Orzimurod and
              Jumanov, Vokhid and Juraev, Dilshod and Musaev, Muhammadjon},
   journal = {Sensors},
