@@ -93,6 +93,34 @@ decodes frame-synchronously and emits partial hypotheses as audio arrives — gi
 - Front-end ASR for voice bots, intelligent IVR and call-center automation
 - A starting checkpoint for further fine-tuning on another Uzbek domain
 
+## Technologies
+
+**This model (ASR stage)**
+
+| Area | Technology |
+|---|---|
+| Framework | NVIDIA NeMo, PyTorch |
+| Architecture | FastConformer-Transducer (Medium), RNN-T loss |
+| Tokenizer | SentencePiece (subword) |
+| Augmentation | Gaussian noise, speed perturbation, SpecAugment |
+| Pseudo-labeling | ROVER over E2E-Conformer and two Whisper Medium models |
+| Training hardware | 2 × NVIDIA Tesla V100S (32 GB), FP16 |
+
+**Full voice-to-voice RAG pipeline (described in the paper)**
+
+| Stage | Technology |
+|---|---|
+| Streaming ASR | FastConformer-Transducer (this model) + VAD |
+| Query rewriting | flan-t5-large, fine-tuned with LoRA (PEFT) |
+| Intent recognition | ModernUzBERT + linear classifier |
+| Dense retrieval | ModernUzBERT embeddings + FAISS |
+| Sparse retrieval | BM25 (k1 = 1.5, b = 0.75) |
+| Fusion | Reciprocal Rank Fusion (RRF) |
+| Generator | Qwen2.5-7B, CPT + SFT with QLoRA (4-bit, LoRA rank 32) |
+| Speech synthesis | VITS with HiFi-GAN V1 decoder (Coqui TTS) |
+| Data preparation | Speaker diarization, XLM-RoBERTa NER for PII masking, Gemini 2.5 Flash for transcript editing |
+| Telephony | FreeSWITCH (live testing in progress) |
+
 ## Download the checkpoint
 
 The `.nemo` checkpoint (≈438 MB) is **not stored in this Git repository**. Download it
@@ -321,6 +349,9 @@ xatolarining RAG bosqichiga o'tishini kamaytiradi.
 - Kechikish: **FTL 110 ms** (Conformer bazaviy modelida 240 ms)
 - Kirish: 16 kHz mono WAV (8 kHz telefon audiosi 16 kHz ga qayta namunalanadi)
 - Chiqish: kichik harflarda, **tinish belgilarisiz** o'zbek lotin matni
+- Texnologiyalar: NVIDIA NeMo, PyTorch, SentencePiece; to'liq tizimda flan-t5-large,
+  ModernUzBERT, FAISS, BM25, RRF, Qwen2.5-7B (CPT + SFT, QLoRA), VITS (Coqui TTS),
+  FreeSWITCH
 
 **Checkpoint'ni yuklab olish**
 
