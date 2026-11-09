@@ -382,7 +382,7 @@ oling.
              Real-Time Voice-to-Voice RAG for Uzbek},
   author  = {Khujayarov, Ilyos and Ochilov, Mannon and Kholmatov, Orzimurod and
              Jumanov, Vokhid and Juraev, Dilshod and Musaev, Muhammadjon},
-  journal = {Sensors},
+  journal = {Technologies},
   year    = {2026}
 }
 ```
